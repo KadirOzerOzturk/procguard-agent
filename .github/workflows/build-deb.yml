@@ -1,51 +1,78 @@
-name: Build and Package .deb
+name: ProcGuard Agent Build and Release
 
 on:
   push:
     tags:
-      - 'v*'  # Örn: v1.0.0 gibi tag atıldığında tetiklenir
+      - 'v*'       
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
+  naming:
+    runs-on: ubuntu-20.04
     steps:
-      - name: 📥 Checkout Code
-        uses: actions/checkout@v3
+    - id: naming
+      run: |
+        echo "::set-output name=prerelease::false"
+        echo "::set-output name=name::ProcGuard Agent Release ${{ github.run_number }}"
+        echo "::set-output name=tag_name::v${{ github.run_number }}"
+    outputs:
+      prerelease: ${{ steps.naming.outputs.prerelease }}
+      name: ${{ steps.naming.outputs.name }}
+      tag_name: ${{ steps.naming.outputs.tag_name }}
 
-      - name: ⚙️ Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
+  build:
+    needs: naming
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v3
 
-      - name: 🛠 Build Go binary
-        run: |
-          mkdir -p build/usr/local/bin
-          go build -o build/usr/local/bin/procguard-agent ./cmd/server/main.go
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
 
-      - name: 📦 Create DEBIAN control file
-        run: |
-          mkdir -p build/DEBIAN
-          cat <<EOF > build/DEBIAN/control
-Package: procguard-agent
-Version: ${GITHUB_REF_NAME#v}
-Section: base
-Priority: optional
-Architecture: amd64
-Depends:
-Maintainer: Your Name <you@example.com>
-Description: ProcGuard Agent collects and reports system stats for monitoring.
-EOF
+    - name: Build ProcGuard Agent Binary
+      run: |
+        go mod tidy
+        CGO_ENABLED=0 go build -o procguard-agent ./cmd/server/main.go
 
-      - name: 🧹 Fix Permissions
-        run: chmod 755 build/DEBIAN
+    - name: Install packaging tools
+      run: sudo apt-get update && sudo apt-get install -y rpm dpkg fakeroot
 
-      - name: 📦 Build .deb Package
-        run: |
-          dpkg-deb --build build procguard-agent_${GITHUB_REF_NAME#v}_amd64.deb
+    - name: Create DEB and RPM package
+      run: |
+        VERSION=${{ github.run_number }}
+        TMP_DIR=/tmp/procguard-agent-build
+        DEBIAN_PATH=$TMP_DIR/DEBIAN
+        BIN_PATH=$TMP_DIR/usr/local/bin
 
-      - name: 📤 Upload .deb Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: procguard-agent
-          path: procguard-agent_*.deb
+        rm -rf $TMP_DIR
+        mkdir -p $DEBIAN_PATH
+        mkdir -p $BIN_PATH
+
+        cp procguard-agent $BIN_PATH/procguard-agent
+        cp debian/control $DEBIAN_PATH/control
+        sed -i "s/%VERSION%/$VERSION/g" $DEBIAN_PATH/control
+
+        fakeroot dpkg-deb --build $TMP_DIR
+        mv $TMP_DIR.deb /tmp/procguard-agent-${VERSION}-x64.deb
+
+        mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+        cp procguard-agent ~/rpmbuild/SOURCES/
+        rpmbuild -bb scripts/redhat/app.spec \
+          --define "_topdir ~/rpmbuild" \
+          --define "version $VERSION" \
+          --define "_rpmdir /tmp" \
+          --define "_rpmfilename procguard-agent-${VERSION}-x64.rpm"
+
+    - name: Release to GitHub
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        files: |
+          /tmp/procguard-agent-${{ github.run_number }}-x64.deb
+          /tmp/procguard-agent-${{ github.run_number }}-x64.rpm
+        name: "${{ needs.naming.outputs.name }}"
+        tag_name: "${{ needs.naming.outputs.tag_name }}"
+        prerelease: ${{ needs.naming.outputs.prerelease }}

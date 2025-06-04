@@ -1,0 +1,33 @@
+#!/bin/bash
+chown -R root:root /usr/bin/procguard-agent
+chmod -R 777 /usr/bin/procguard-agent
+
+if [ -f "/usr/lib/systemd/system/procguard-agent.service" ]; then
+    rm -rf /usr/lib/systemd/system/procguard-agent.service 2>/dev/null || true
+    systemctl disable procguard-agent.service 2>/dev/null || true
+    systemctl stop procguard-agent.service 2>/dev/null || true
+    systemctl daemon-reload 2>/dev/null || true
+fi
+
+cat <<EOF > /etc/systemd/system/procguard-agent.service
+[Unit]
+Description=Code generator - cli tool
+
+[Service]
+Type=simple
+WorkingDirectory=/usr/bin
+ExecStart=/usr/bin/procguard-agent
+Restart=always
+RestartSec=10
+SyslogIdentifier=procguard-agent
+KillSignal=SIGINT
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable procguard-agent.service
+systemctl restart procguard-agent.service
