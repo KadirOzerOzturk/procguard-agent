@@ -1,0 +1,8 @@
+Package: procguard-agent
+Version: 1.0.0
+Section: base
+Priority: optional
+Architecture: amd64
+Depends:
+Maintainer: Kadir Ozer <kadir@example.com>
+Description: ProcGuard Agent - System monitoring agent written in Go
