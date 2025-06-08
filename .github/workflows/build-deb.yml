@@ -1,48 +1,48 @@
-name: Build and Release ProcGuard Agent
+name: ProcGuard Agent Build and Release
 
 on:
   push:
-    branches:
-      - main  # veya default branch’ine göre ayarla (örnek: master)
-  workflow_dispatch:
+    tags:
+      - 'v*'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
           go-version: '1.21'
 
-      - name: Build binary
+      - name: Build Binary
         run: |
           go mod tidy
-          go build -o procguard-agent ./cmd/server/main.go
+          CGO_ENABLED=0 go build -o procguard-agent ./cmd/server/main.go
 
       - name: Prepare .deb package
         run: |
-          VERSION="0.1.$(date +%Y%m%d).${{ github.run_number }}"
-          
+          VERSION=${GITHUB_REF##*/v}
+
           mkdir -p pkg/DEBIAN
           mkdir -p pkg/usr/local/bin
-          
+
+          # Replace %VERSION% in control
           sed "s/%VERSION%/$VERSION/" scripts/debian/control > pkg/DEBIAN/control
           
-          if [ -f scripts/debian/postinst ]; then
-            cp scripts/debian/postinst pkg/DEBIAN/postinst
-            chmod 755 pkg/DEBIAN/postinst
-          fi
+          # Optional: copy postinst if exists
+          [ -f scripts/debian/postinst ] && cp scripts/debian/postinst pkg/DEBIAN/postinst && chmod 755 pkg/DEBIAN/postinst
           
           cp procguard-agent pkg/usr/local/bin/procguard-agent
           
           dpkg-deb --build pkg
           mv pkg.deb procguard-agent_${VERSION}_amd64.deb
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
+      - name: Upload .deb to Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: procguard-agent-deb
-          path: procguard-agent_*.deb
+          files: procguard-agent_${{ github.ref_name }}_amd64.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

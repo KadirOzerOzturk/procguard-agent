@@ -21,3 +21,20 @@ func KillProcess(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"message": "Process killed successfully"})
 }
+
+func GetTopProcesses(c *fiber.Ctx) error {
+	topProcs, err := services.GetTopProcesses(5)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(topProcs)
+}
+func GetAllProcesses(c *fiber.Ctx) error {
+	allProcs, err := services.GetAllProcesses()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(allProcs)
+}

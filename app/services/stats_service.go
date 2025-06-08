@@ -15,7 +15,6 @@ import (
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
 	gopsnet "github.com/shirou/gopsutil/v3/net"
-	"github.com/shirou/gopsutil/v3/process"
 )
 
 // GetAgentID returns a unique agent ID based on local IP
@@ -35,11 +34,18 @@ func GetAgentID() string {
 
 // CollectSystemStats gathers all required system statistics
 func CollectSystemStats() (entities.SystemStats, error) {
-	cpuPercent, _ := cpu.Percent(0, false)
+	cpu.Percent(0, false)
+	time.Sleep(500 * time.Millisecond)
+
+	// Gerçek ölçüm
+	cpuPercent, err := cpu.Percent(0, false)
+	if err != nil {
+		return entities.SystemStats{}, err
+	}
 	memStats, _ := mem.VirtualMemory()
 	netStats, _ := gopsnet.IOCounters(false)
 	diskStats, _ := disk.Usage(getDiskMountPoint())
-	topProcs := getTopProcesses(5)
+	topProcs, _ := GetTopProcesses(5)
 
 	return entities.SystemStats{
 		AgentID:     GetAgentID(),
@@ -97,29 +103,6 @@ func PrintStatsAsJSON(stats entities.SystemStats) {
 	if data, err := json.MarshalIndent(stats, "", "  "); err == nil {
 		fmt.Println(string(data))
 	}
-}
-
-// Helpers
-func getTopProcesses(limit int) []entities.ProcessStats {
-	procs, _ := process.Processes()
-	var result []entities.ProcessStats
-
-	for _, p := range procs {
-		cpuPercent, err := p.CPUPercent()
-		if err != nil || cpuPercent < 0.5 {
-			continue
-		}
-		name, _ := p.Name()
-		result = append(result, entities.ProcessStats{
-			Pid:        p.Pid,
-			Name:       name,
-			CPUPercent: cpuPercent,
-		})
-		if len(result) >= limit {
-			break
-		}
-	}
-	return result
 }
 
 func getDiskMountPoint() string {

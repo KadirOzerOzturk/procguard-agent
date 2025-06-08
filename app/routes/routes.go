@@ -13,4 +13,6 @@ func SetupRoutes(app *fiber.App) {
 
 	processGroup := app.Group("/processes")
 	processGroup.Post("/kill", controllers.KillProcess)
+	processGroup.Get("/top", controllers.GetTopProcesses)
+	processGroup.Get("/all", controllers.GetAllProcesses)
 }
