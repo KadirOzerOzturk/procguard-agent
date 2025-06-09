@@ -10,9 +10,10 @@ func SetupRoutes(app *fiber.App) {
 	agentGroup.Get("/stats", controllers.CollectSystemStats)
 	agentGroup.Post("/send", controllers.SendStats)
 	agentGroup.Get("/ping", controllers.Ping)
+	agentGroup.Get("/info", controllers.GetAgentInfo)
 
 	processGroup := app.Group("/processes")
-	processGroup.Post("/kill", controllers.KillProcess)
+	processGroup.Post("/kill/:pid", controllers.KillProcess)
 	processGroup.Get("/top", controllers.GetTopProcesses)
 	processGroup.Get("/all", controllers.GetAllProcesses)
 }

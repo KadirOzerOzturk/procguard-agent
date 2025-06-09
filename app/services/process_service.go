@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/KadirOzerOzturk/procguard-agent/app/entities"
@@ -43,7 +42,6 @@ func GetAllProcesses() ([]entities.ProcessStats, error) {
 		return nil, err
 	}
 
-	// İlk ölçüm için süre ver (CPU yüzdesi hesaplanabilsin diye)
 	time.Sleep(500 * time.Millisecond)
 
 	var result []entities.ProcessStats
@@ -78,6 +76,5 @@ func GetAllProcesses() ([]entities.ProcessStats, error) {
 		})
 	}
 
-	fmt.Println("Processes", result)
 	return result, nil
 }
